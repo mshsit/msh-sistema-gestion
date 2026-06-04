@@ -1,1 +1,6 @@
 .streamlit/secrets.toml
+python-3.11.9-amd64.exe
+RESPALDO/
+PROGRAMAS/
+*.exe
+*.docx
