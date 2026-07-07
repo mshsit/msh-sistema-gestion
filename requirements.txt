@@ -2,3 +2,5 @@ streamlit
 supabase
 pandas
 fpdf
+python-barcode
+Pillow
