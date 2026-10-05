@@ -145,6 +145,39 @@ def cargar_proyectos():
         st.error(f"Error al cargar proyectos: {e}")
         return []
 
+def generar_numero_proyecto():
+    try:
+        return supabase.rpc("generar_numero_proyecto", {}).execute().data
+    except Exception as e:
+        st.error(f"Error al generar número de proyecto: {e}")
+        return None
+
+
+def siguiente_numero_proyecto():
+    try:
+        return supabase.rpc("siguiente_numero_proyecto_preview", {}).execute().data
+    except Exception:
+        return "????"
+
+
+def cargar_resumen_semaforo():
+    try:
+        res = supabase.table("seguimiento_proyectos").select("proyecto_id, color_semaforo") \
+            .eq("estado_ciclo", "activo").not_.is_("proyecto_id", "null").execute()
+        prioridad = {"rojo": 0, "amarillo": 1, "azul": 2, "verde": 3}
+        resumen = {}
+        for fila in (res.data or []):
+            pid = fila["proyecto_id"]
+            color = fila["color_semaforo"]
+            if pid not in resumen:
+                resumen[pid] = {"total": 0, "color": color}
+            resumen[pid]["total"] += 1
+            if prioridad.get(color, 9) < prioridad.get(resumen[pid]["color"], 9):
+                resumen[pid]["color"] = color
+        return resumen
+    except Exception as e:
+        st.error(f"Error al cargar resumen de seguimiento: {e}")
+        return {}
 
 def numero_proyecto_existe(numero, excluir_id=None):
     try:
@@ -176,42 +209,43 @@ def actualizar_proyecto(id_registro, payload):
 
 @st.dialog("📁 Nuevo Proyecto")
 def ventana_nuevo_proyecto():
-    numero = st.text_input("Número de proyecto *", placeholder="Ej. PROY-2026-014")
+    st.caption(f"Número de proyecto sugerido: `{siguiente_numero_proyecto()}`")
     nombre = st.text_input("Nombre *", placeholder="Ej. Mantenimiento Planta Norte")
     descripcion = st.text_area("Descripción", height=60)
     cliente = st.text_input("Cliente / Ubicación", placeholder="Opcional")
     c1, c2 = st.columns(2)
     with c1:
-        fecha_inicio = st.date_input("Fecha de inicio", value=date.today())
+        fecha_inicio = st.date_input("Fecha de inicio", value=date.today(), format="DD/MM/YYYY")
     with c2:
         presupuesto = st.number_input("Presupuesto estimado", min_value=0.0, step=100.0)
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
         if st.button("✅ Crear Proyecto", type="primary", width="stretch"):
-            if not numero.strip() or not nombre.strip():
-                st.error("Número de proyecto y nombre son obligatorios.")
-            elif numero_proyecto_existe(numero.strip()):
-                st.error(f"El número de proyecto '{numero}' ya existe.")
+            if not nombre.strip():
+                st.error("El nombre es obligatorio.")
             else:
-                payload = {
-                    "numero_proyecto": numero.strip(), "nombre": nombre.strip(),
-                    "descripcion": descripcion.strip() or None, "cliente_ubicacion": cliente.strip() or None,
-                    "fecha_inicio": str(fecha_inicio), "presupuesto_estimado": presupuesto or None,
-                    "estado": "activo", "activo": True,
-                }
-                if crear_proyecto(payload):
-                    registrar_acceso(st.session_state["usuario"], st.session_state["nombre"], f"AGREGAR PROYECTO: {numero}")
-                    st.session_state["_msg"] = f"Proyecto '{numero}' creado correctamente."
-                    st.rerun()
+                numero = generar_numero_proyecto()
+                if not numero:
+                    st.error("No se pudo generar el número de proyecto, intenta de nuevo.")
+                else:
+                    payload = {
+                        "numero_proyecto": numero, "nombre": nombre.strip(),
+                        "descripcion": descripcion.strip() or None, "cliente_ubicacion": cliente.strip() or None,
+                        "fecha_inicio": str(fecha_inicio), "presupuesto_estimado": presupuesto or None,
+                        "estado": "activo", "activo": True,
+                    }
+                    if crear_proyecto(payload):
+                        registrar_acceso(st.session_state["usuario"], st.session_state["nombre"], f"AGREGAR PROYECTO: {numero}")
+                        st.session_state["_msg"] = f"Proyecto '{numero}' creado correctamente."
+                        st.rerun()
     with c2:
         if st.button("❌ Cancelar", width="stretch"):
             st.rerun()
 
-
 @st.dialog("✏️ Editar Proyecto")
 def ventana_editar_proyecto(proyecto):
-    numero = st.text_input("Número de proyecto *", value=proyecto["numero_proyecto"])
+    st.caption(f"Número de proyecto: `{proyecto['numero_proyecto']}` (no editable)")
     nombre = st.text_input("Nombre *", value=proyecto["nombre"])
     descripcion = st.text_area("Descripción", value=proyecto.get("descripcion") or "", height=60)
     cliente = st.text_input("Cliente / Ubicación", value=proyecto.get("cliente_ubicacion") or "")
@@ -221,31 +255,28 @@ def ventana_editar_proyecto(proyecto):
                                index=["activo", "pausado", "cerrado"].index(proyecto.get("estado", "activo")),
                                format_func=lambda v: v.capitalize())
     with c2:
-        fecha_inicio = st.date_input("Fecha de inicio", value=date.fromisoformat(proyecto["fecha_inicio"]) if proyecto.get("fecha_inicio") else date.today())
+        fecha_inicio = st.date_input("Fecha de inicio", value=date.fromisoformat(proyecto["fecha_inicio"]) if proyecto.get("fecha_inicio") else date.today(), format="DD/MM/YYYY")
     with c3:
         presupuesto = st.number_input("Presupuesto estimado", min_value=0.0, step=100.0, value=float(proyecto.get("presupuesto_estimado") or 0))
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
         if st.button("💾 Guardar Cambios", type="primary", width="stretch"):
-            if not numero.strip() or not nombre.strip():
-                st.error("Número de proyecto y nombre son obligatorios.")
-            elif numero_proyecto_existe(numero.strip(), excluir_id=proyecto["id"]):
-                st.error(f"El número de proyecto '{numero}' ya existe.")
+            if not nombre.strip():
+                st.error("El nombre es obligatorio.")
             else:
                 payload = {
-                    "numero_proyecto": numero.strip(), "nombre": nombre.strip(),
+                    "nombre": nombre.strip(),
                     "descripcion": descripcion.strip() or None, "cliente_ubicacion": cliente.strip() or None,
                     "estado": estado, "fecha_inicio": str(fecha_inicio), "presupuesto_estimado": presupuesto or None,
                 }
                 if actualizar_proyecto(proyecto["id"], payload):
-                    registrar_acceso(st.session_state["usuario"], st.session_state["nombre"], f"EDITAR PROYECTO: {numero}")
-                    st.session_state["_msg"] = f"Proyecto '{numero}' actualizado."
+                    registrar_acceso(st.session_state["usuario"], st.session_state["nombre"], f"EDITAR PROYECTO: {proyecto['numero_proyecto']}")
+                    st.session_state["_msg"] = f"Proyecto '{proyecto['numero_proyecto']}' actualizado."
                     st.rerun()
     with c2:
         if st.button("❌ Cerrar", width="stretch"):
             st.rerun()
-
 
 nombre_actual  = st.session_state.get("nombre", "")
 rol_actual     = st.session_state.get("rol", "")
@@ -325,7 +356,9 @@ if not df_f.empty:
         df_f = df_f[df_f["estado"] == filtro_est.lower()]
 
 if not df_f.empty:
-    cw, ths = [1.6, 2.5, 2, 1.3, 1.5, 1], ["N° Proyecto", "Nombre", "Cliente/Ubicación", "Estado", "Presupuesto", "⚙️"]
+    resumen_semaforo = cargar_resumen_semaforo()
+    emoji_color = {"verde": "🟢", "amarillo": "🟡", "rojo": "🔴", "azul": "🔵"}
+    cw, ths = [1.4, 2.2, 1.8, 1.1, 1.3, 1.3, 0.9], ["N° Proyecto", "Nombre", "Cliente/Ubicación", "Estado", "Presupuesto", "Seguimiento", "⚙️"]
     panel_tabla = st.container(key="panel_tabla")
     with panel_tabla:
         st.markdown('<div class="panel-card-titulo">📋 Proyectos registrados</div>', unsafe_allow_html=True)
@@ -341,7 +374,10 @@ if not df_f.empty:
             r[3].markdown(f"<div class='{cls}'><span class='badge badge-{row['estado']}'>{row['estado'].capitalize()}</span></div>", unsafe_allow_html=True)
             presup = row.get("presupuesto_estimado")
             r[4].markdown(f"<div class='{cls}'>{'$' + format(presup, ',.2f') if presup else '—'}</div>", unsafe_allow_html=True)
-            with r[5]:
+            seg = resumen_semaforo.get(row["id"])
+            seg_txt = f"{emoji_color.get(seg['color'], '⚪')} {seg['total']} OT" if seg else "—"
+            r[5].markdown(f"<div class='{cls}'>{seg_txt}</div>", unsafe_allow_html=True)
+            with r[6]:
                 if st.button("✏️", key=f"ed_proy_{row['id']}", width="stretch"):
                     ventana_editar_proyecto(row.to_dict())
 else:
