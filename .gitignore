@@ -4,3 +4,4 @@ RESPALDO/
 PROGRAMAS/
 *.exe
 *.docx
+__pycache__/
