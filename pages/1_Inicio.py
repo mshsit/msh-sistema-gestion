@@ -83,7 +83,7 @@ CATEGORIAS = {
             ("Unidades de Medida", "Pieza, caja, metro, litro...", "📏", "pages/10_UnidadesMedida.py", True),
             ("Ubicaciones", "Estructura física del almacén", "📍", "pages/11_Ubicaciones.py", True),
             ("Correlativo de Activos", "Ajuste de numeración para migración", "🔢", "pages/12_CorrelativoActivos.py", True),
-            ("Correlativo de Numero de Proyecto y OT", "Ajuste de numeración para migración", "🔢", "pages/20_Configuracion.py", True),
+            ("Correlativo de Numero de Proyecto y OT", "Ajuste de numeración para migración", "🔢", "pages/27_Configuracion.py", True),
             ("Usuarios y roles",   "Administra accesos del sistema", "👤", "pages/7_Usuarios.py", False),
             ("Historial de acceso", "Consulta los inicios de sesión", "🕓", "pages/8_Historial.py", False),
             ("Departamentos", "Áreas internas de la empresa", "🏢", "pages/20_Departamentos.py", True),
