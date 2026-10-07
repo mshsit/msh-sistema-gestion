@@ -11,13 +11,17 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════
-# Auto-refresh cada 25 segundos — requiere streamlit-autorefresh
-# pip install streamlit-autorefresh
+# Auto-refresh cada 13 segundos — avanza la página y refresca datos
+# a la vez. requiere streamlit-autorefresh: pip install streamlit-autorefresh
 # ══════════════════════════════════════════════
+FILAS_POR_PAGINA = 8
+INTERVALO_MS = 13_000
+
 try:
     from streamlit_autorefresh import st_autorefresh
-    st_autorefresh(interval=25_000, key="tv_autorefresh")
+    conteo_refrescos = st_autorefresh(interval=INTERVALO_MS, key="tv_autorefresh")
 except ImportError:
+    conteo_refrescos = 0
     st.warning("Falta instalar streamlit-autorefresh (`pip install streamlit-autorefresh`) para el refresco automático.")
 
 st.markdown("""
@@ -166,8 +170,13 @@ st.markdown(f"""
 if not datos:
     st.markdown('<div class="tv-tabla-wrap"><div class="tv-vacio">📭 No hay proyectos activos en este momento.</div></div>', unsafe_allow_html=True)
 else:
+    total_paginas = max(1, -(-len(datos) // FILAS_POR_PAGINA))  # redondeo hacia arriba
+    pagina_actual = conteo_refrescos % total_paginas
+    inicio = pagina_actual * FILAS_POR_PAGINA
+    datos_pagina = datos[inicio:inicio + FILAS_POR_PAGINA]
+
     filas_html = ""
-    for i, d in enumerate(datos):
+    for i, d in enumerate(datos_pagina):
         cls = "tv-td tv-td-alt" if i % 2 == 1 else "tv-td"
         badge = f'<span class="tv-badge tv-badge-{d["color_semaforo"]}">{EMOJI_COLOR.get(d["color_semaforo"], "")} {ETIQUETA_COLOR.get(d["color_semaforo"], "")}</span>'
         filas_html += f"""
@@ -194,9 +203,10 @@ else:
         </div>
     """, unsafe_allow_html=True)
 
-st.markdown("""
+pagina_txt = f" · Página {pagina_actual + 1} de {total_paginas}" if datos and total_paginas > 1 else ""
+st.markdown(f"""
     <div class="tv-footer">
-        <span class="tv-footer-txt">🔄 Actualización automática cada 25 seg</span>
+        <span class="tv-footer-txt">🔄 Actualización automática cada 13 seg{pagina_txt}</span>
         <span class="tv-footer-txt">Fuente: MSH-Hub</span>
     </div>
 """, unsafe_allow_html=True)

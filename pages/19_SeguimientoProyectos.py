@@ -226,14 +226,13 @@ def actualizar_seguimiento(id_registro, payload):
         st.error(f"Error al guardar: {e}")
         return False
 
-
 def subir_documento_seguimiento(archivo, numero_ot):
     try:
         ruta = f"{numero_ot}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{archivo.name}"
         supabase.storage.from_("proyectos-documentos").upload(
             ruta, archivo.getvalue(), {"content-type": archivo.type or "application/octet-stream"}
         )
-        return supabase.storage.from_("proyectos-documentos").get_public_url(ruta)
+        return ruta
     except Exception as e:
         st.warning(f"No se pudo subir el documento: {e}")
         return None
@@ -245,11 +244,25 @@ def subir_imagen_seguimiento(archivo, numero_ot):
         supabase.storage.from_("proyectos-imagenes").upload(
             ruta, archivo.getvalue(), {"content-type": archivo.type or "application/octet-stream"}
         )
-        return supabase.storage.from_("proyectos-imagenes").get_public_url(ruta)
+        return ruta
     except Exception as e:
         st.warning(f"No se pudo subir la imagen: {e}")
         return None
 
+def url_firmada_documento(ruta, expira_seg=14400):
+    try:
+        res = supabase.storage.from_("proyectos-documentos").create_signed_url(ruta, expira_seg)
+        return res.get("signedURL") or res.get("signed_url") or res.get("signedUrl")
+    except Exception:
+        return None
+
+
+def url_firmada_imagen(ruta, expira_seg=14400):
+    try:
+        res = supabase.storage.from_("proyectos-imagenes").create_signed_url(ruta, expira_seg)
+        return res.get("signedURL") or res.get("signed_url") or res.get("signedUrl")
+    except Exception:
+        return None
 
 def cargar_documentos(seguimiento_id):
     try:
@@ -405,7 +418,8 @@ def ventana_editar_ot(seg):
     st.markdown("**📎 Documentos**")
     for doc in cargar_documentos(seg["id"]):
         dc1, dc2 = st.columns([5, 1])
-        dc1.markdown(f"[{doc['nombre_archivo']}]({doc['url']})")
+        link = url_firmada_documento(doc["url"])
+        dc1.markdown(f"[{doc['nombre_archivo']}]({link})" if link else f"{doc['nombre_archivo']} (no disponible)")
         if dc2.button("🗑️", key=f"del_doc_{doc['id']}"):
             eliminar_documento(doc["id"])
             st.rerun(scope="fragment")
@@ -425,7 +439,9 @@ def ventana_editar_ot(seg):
         cols_img = st.columns(4)
         for i, img in enumerate(imagenes):
             with cols_img[i % 4]:
-                st.image(img["url"], width="stretch")
+                link = url_firmada_imagen(img["url"])
+                if link:
+                    st.image(link, width="stretch")
                 if st.button("🗑️", key=f"del_img_{img['id']}", width="stretch"):
                     eliminar_imagen(img["id"])
                     st.rerun(scope="fragment")
