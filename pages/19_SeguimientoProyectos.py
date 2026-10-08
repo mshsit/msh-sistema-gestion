@@ -366,9 +366,9 @@ def ventana_nueva_ot():
                     st.session_state["_msg_seg"] = f"OT {numero_ot} creada correctamente."
                     st.rerun()
 
-
 @st.dialog("✏️ Editar OT", width="large")
 def ventana_editar_ot(seg):
+    seg = {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in seg.items()}
     es_borrador = seg.get("proyecto_id") is None
     st.markdown(f"**OT:** `{seg['numero_ot']}`" + ("  ·  ⚠️ Borrador — sin proyecto vinculado" if es_borrador else f"  ·  Proyecto: `{seg.get('numero_proyecto', '—')}`"))
 
